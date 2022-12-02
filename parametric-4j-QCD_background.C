@@ -36,13 +36,13 @@ void parametric_4j_QCD_background() {
 
     
 
-    TNtuple *mytuple = new TNtuple("mytuple", "parametric_4j_QCD_background", "j_Px:j_Py:j_Pz:j_E:j_eta:j_phi");
-    TFile *outputFile = new TFile("NTuple.root", "recreate");
+    //TNtuple *mytuple = new TNtuple("mytuple", "parametric_4j_QCD_background", "j_Px:j_Py:j_Pz:j_E:j_eta:j_phi");
+    //TFile *outputFile = new TFile("NTuple.root", "recreate");
 
     // VARIABLES
 
     Double_t tau = 1./10.; // Bjorken scaling slope
-    Double_t E1 = 6.5; // TeV of energy for each proton
+    Double_t E_i = 6.5; // TeV of energy for each proton
     Double_t E1_prime, E2_prime; // TeV of energy for the outgoing partons
     Double_t E_j1, E_j2, E_j3, E_j4; // TeV of energy of the jets
 
@@ -62,12 +62,9 @@ void parametric_4j_QCD_background() {
 
     // b-tagging efficiency
     TF1 *B = new TF1("B", "0.7 * (0.5 + 2 * TMath::Erf((1.8 - TMath::Abs(x)) / 0.3))");
-
     Int_t Nbtaggedjets;
 
-    // Lorentz vectors of partons before and after collision
-    TLorentzVector p1(0, 0, E1, E1);
-    TLorentzVector p2(0, 0, -E1, E1);
+    // Lorentz vectors of partons after collision
     TLorentzVector p1_prime, p2_prime;
 
     // Lorentz vectors of jets
@@ -86,7 +83,7 @@ void parametric_4j_QCD_background() {
     TH1D *hist_thetaLAB2 = new TH1D("", "thetaLAB", 250, -1, TMath::Pi() + 1);
     hist_thetaLAB2->SetLineColor(kRed);
 
-    TH1D *hist_E4j = new TH1D("", "energy sum of 4j", 250, 0., 20.);
+    TH1D *hist_E4j = new TH1D("", "energy sum of 4j", 250, -20., 20.);
 
     TH1D *hist_F = new TH1D("", "F", 250, 0., 1.);
     TH1D *hist_B = new TH1D("", "B", 250, 0., 1.);
@@ -99,31 +96,31 @@ void parametric_4j_QCD_background() {
         x2 = gRandom->Exp(tau); // exp (t / tau)
         y = gRandom->Uniform(-1, 1); // fraction of momentum transferred by one parton to another (in [-1, 1] to allow bidirectionality)
 
-        q0 = y * E1; // energy transferred from one parton to another
+        // q0 = y * E_i; // energy transferred from one parton to another
+        q0 = E_i; // equal energy partition between partons
 
-        E1_prime = E1 - q0;
-        E2_prime = E1 + q0;
+        E1_prime = q0;
+        E2_prime = q0;
         theta_CoM = gRandom->Uniform(0, TMath::Pi());
-        phi1 = gRandom->Uniform(0, TMath::Pi()); // azimuthal angle for one of the two partons in the 2->2 hard process
+        phi1 = gRandom->Uniform(0, 2 * TMath::Pi()); // azimuthal angle for one of the two partons in the 2->2 hard process
         phi2 = phi1 + TMath::Pi();
 
         // considering 0 mass also for the outgoing partons
         p1_prime.SetPxPyPzE(E1_prime * TMath::Sin(theta_CoM) * TMath::Cos(phi1), E1_prime * TMath::Sin(theta_CoM) * TMath::Sin(phi1), E1_prime * TMath::Cos(theta_CoM), E1_prime);
         p2_prime.SetPxPyPzE(E2_prime * TMath::Sin(TMath::Pi() - theta_CoM) * TMath::Cos(phi2), E2_prime * TMath::Sin(TMath::Pi() - theta_CoM) * TMath::Sin(phi2), E2_prime * TMath::Cos(TMath::Pi() - theta_CoM), E2_prime); // theta for second parton is (pi - theta) in CoM
 
+        cout << "boosts: " << (x1-x2) * E1_prime << ",  " << (x1-x2) * E2_prime << endl;
+        // boosting the outgoing partons
+        p1_prime.Boost(0, 0, p1_prime.Pz() / p1_prime.E());
+        p2_prime.Boost(0, 0, p2_prime.Pz() / p2_prime.E());
 
 
-
-        /////
-        p1_prime.Boost(0, 0, x1-x2); // *********** SOMETHING WRONG WITH THE BOOST *********+
-        p2_prime.Boost(0, 0, x1-x2);
-        /////
+        if (TMath::IsNaN(p1_prime.Pz())) {cout << "Found a NaN Pz for E1_prime: " << E1_prime << ", theta_CoM: " << theta_CoM << endl;};
+        if (TMath::IsNaN(p2_prime.Pz())) {cout << "Found a NaN Pz for E2_prime: " << E2_prime << ", theta_CoM: " << theta_CoM << endl;};
 
         theta1_LAB = p1_prime.Theta();
         theta2_LAB = p2_prime.Theta();
 
-        split_prob1 = gRandom->Uniform(-1, 1);
-        split_prob2 = gRandom->Uniform(-1, 1);
 
         // histograms up to before jets generation
         hist_x1->Fill(x1);
@@ -131,17 +128,20 @@ void parametric_4j_QCD_background() {
         hist_E1_prime->Fill(E1_prime);
         hist_E2_prime->Fill(E2_prime);
         hist_sum->Fill(E1_prime + E2_prime);
-        hist_boost->Fill(x1-x2);
+        hist_boost->Fill((x1 - x2) * E_i);
         hist_thetaLAB1->Fill(theta1_LAB);
         hist_thetaLAB2->Fill(theta2_LAB);
 
 
         // probabilities of splitting
+        split_prob1 = gRandom->Uniform(-1, 1);
+        split_prob2 = gRandom->Uniform(-1, 1);
+
         if (split_prob1 > 0 && split_prob2 > 0) // splitting to 4 partons
         {
             //cout << "four jets" << endl;
 
-            // will use split prob also as a separator of energy
+            // will use split prob also as a separator of energy since in the case of splitting split_prob is in (0, 1)
             E_j1 = split_prob1 * E1_prime; // using the energy in CoM !!
             E_j2 = (1 - split_prob1) * E1_prime;
             E_j3 = split_prob2 * E2_prime;
@@ -165,15 +165,57 @@ void parametric_4j_QCD_background() {
             p_j3.SetPxPyPzE(E_j3 * TMath::Sin(theta_j3) * TMath::Cos(phi_j3), E_j3 * TMath::Sin(theta_j3) * TMath::Sin(phi_j3), E_j3 * TMath::Cos(theta_j3), E_j3);
             p_j4.SetPxPyPzE(E_j4 * TMath::Sin(theta_j4) * TMath::Cos(phi_j1), E_j4 * TMath::Sin(theta_j4) * TMath::Sin(phi_j4), E_j4 * TMath::Cos(theta_j4), E_j4);
 
+
+            
+            // boosting the jets
+            /*
+            p_j1.Boost(0, 0, E1_prime);
+            p_j2.Boost(0, 0, E1_prime);
+            p_j3.Boost(0, 0, E2_prime);
+            p_j4.Boost(0, 0, E2_prime);
+            */
+
+            Double_t pT_j1, pT_j2, pT_j3, pT_j4;
+            Double_t eta_j1, eta_j2, eta_j3, eta_j4;
+
+            pT_j1 = p_j1.E() * TMath::Sin(theta_j1);
+            pT_j2 = p_j2.E() * TMath::Sin(theta_j2);
+            pT_j3 = p_j3.E() * TMath::Sin(theta_j3);
+            pT_j4 = p_j4.E() * TMath::Sin(theta_j4);
+
+            eta_j1 = - TMath::Log(TMath::Tan(theta_j1 / 2));
+            eta_j2 = - TMath::Log(TMath::Tan(theta_j2 / 2));
+            eta_j3 = - TMath::Log(TMath::Tan(theta_j3 / 2));
+            eta_j4 = - TMath::Log(TMath::Tan(theta_j4 / 2));
+
+            p_j1.SetPtEtaPhiE(pT_j1, eta_j1, phi_j1, E_j1);
+            p_j2.SetPtEtaPhiE(pT_j2, eta_j2, phi_j2, E_j2);
+            p_j3.SetPtEtaPhiE(pT_j3, eta_j3, phi_j3, E_j3);
+            p_j4.SetPtEtaPhiE(pT_j4, eta_j4, phi_j4, E_j4);
+
+            
             
             // checking conservation of energy in the CoM
-            hist_E4j->Fill(p_j1.E() + p_j2.E() + p_j3.E() + p_j4.E());
+            hist_E4j->Fill(theta_CoM);
 
-            // boosting the jets
-            p_j1.Boost(0, 0, x1-x2);
-            p_j2.Boost(0, 0, x1-x2);
-            p_j3.Boost(0, 0, x1-x2);
-            p_j4.Boost(0, 0, x1-x2);
+
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             F_j1 = gRandom->Uniform(0, 1);
             F_j2 = gRandom->Uniform(0, 1);
@@ -193,10 +235,10 @@ void parametric_4j_QCD_background() {
                 if (B_j1 < B_th && B_j2 < B_th && B_j3 < B_th && B_j4 < B_th) // all 4 jets b-tagged
                 {   
                     Nbtaggedjets = 4;
-                    mytuple->Fill(p_j1.Px(), p_j1.Py(), p_j1.Pz(), p_j1.E(), p_j1.Eta(), p_j1.Phi());
-                    mytuple->Fill(p_j2.Px(), p_j2.Py(), p_j2.Pz(), p_j2.E(), p_j2.Eta(), p_j2.Phi());
-                    mytuple->Fill(p_j3.Px(), p_j3.Py(), p_j3.Pz(), p_j3.E(), p_j3.Eta(), p_j3.Phi());
-                    mytuple->Fill(p_j4.Px(), p_j4.Py(), p_j4.Pz(), p_j4.E(), p_j4.Eta(), p_j4.Phi());
+                    //mytuple->Fill(p_j1.Px(), p_j1.Py(), p_j1.Pz(), p_j1.E(), p_j1.Eta(), p_j1.Phi());
+                    //mytuple->Fill(p_j2.Px(), p_j2.Py(), p_j2.Pz(), p_j2.E(), p_j2.Eta(), p_j2.Phi());
+                    //mytuple->Fill(p_j3.Px(), p_j3.Py(), p_j3.Pz(), p_j3.E(), p_j3.Eta(), p_j3.Phi());
+                    //mytuple->Fill(p_j4.Px(), p_j4.Py(), p_j4.Pz(), p_j4.E(), p_j4.Eta(), p_j4.Phi());
                 }
 
                 if ((B_j1 < B_th && B_j2 < B_th && B_j3 < B_th && B_j4 > B_th) || (B_j1 < B_th && B_j2 < B_th && B_j3 > B_th && B_j4 < B_th) || (B_j1 < B_th && B_j2 > B_th && B_j3 < B_th && B_j4 < B_th) || ((B_j1 > B_th && B_j2 < B_th && B_j3 < B_th && B_j4 < B_th))) // 3 jets b-tagged
@@ -232,10 +274,8 @@ void parametric_4j_QCD_background() {
 
 
 
-
-
-
     // plotting for checking
+    /*
     TCanvas *c1 = new TCanvas("c1", "x1");
     hist_x1->Draw();
     TCanvas *c2 = new TCanvas("c2", "x2");
@@ -246,6 +286,7 @@ void parametric_4j_QCD_background() {
     hist_E2_prime->Draw();
     TCanvas *c5 = new TCanvas("c5", "E1_prime+E2_prime");
     hist_sum->Draw();
+    */
     TCanvas *c6 = new TCanvas("c6", "boost");
     c6->SetLogy();
     hist_boost->GetXaxis()->SetTitle("x1 - x2");
@@ -255,14 +296,14 @@ void parametric_4j_QCD_background() {
     hist_thetaLAB2->Draw("same");
     TCanvas *c8 = new TCanvas("c8", "E4j");
     hist_E4j->Draw();
+    /*
     TCanvas *c9 = new TCanvas("c9", "F");
     hist_F->Draw();
     TCanvas *c10 = new TCanvas("c10", "B");
     hist_B->Draw();
+    */
     
     
-    mytuple->Write();
-    outputFile->Close();
     
 
 
@@ -277,5 +318,5 @@ void parametric_4j_QCD_background() {
 
 
 
-    //Double_t Q2 = x1 * x2 * s;
+
 }
