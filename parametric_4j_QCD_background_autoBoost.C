@@ -43,7 +43,6 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
         Int_t accepted_ev = 0;                                                                                              // accepted events
         Double_t tau = 1./50.;                                                                                              // Bjorken scaling slope
         Double_t E_beam = 6.5;                                                                                              // TeV of energy for each proton
-        Double_t mass = 2E-6;                                                                                               // 2 MeV of mass assumed for the quark (in TeV)
         Double_t E_i1_CoM, E_i2_CoM;                                                                                        // TeV of energy for the incoming partons (in CoM frame)
         Double_t sqrt_s;                                                                                                    // √s 
         Double_t E1_prime_CoM, E2_prime_CoM;                                                                                // TeV of energy for the outgoing partons (in CoM frame)
@@ -61,8 +60,8 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
         Double_t theta_j1_LAB, theta_j2_LAB, theta_j3_LAB, theta_j4_LAB, phi_j1_LAB, phi_j2_LAB, phi_j3_LAB, phi_j4_LAB;    // angles of the jets emitted in the CoM; j2 and j4 are collinear with j1 and j3 respectively
         TLorentzVector p_j1, p_j2, p_j3, p_j4;                                                                              // Lorentz vectors of jets (in CoM frame)
         
-        
-        TF1 *F = new TF1("F", "0.5 + 0.5 * TMath::Erf((x-[0]) / [1])", 0., 100.);                                           // detection efficiency (domain in GeV)
+        // efficiency and b-tagging
+        TF1 *F = new TF1("F", "0.5 + 0.5 * TMath::Erf((x-[0]) / [1])", 0., 300.);                                           // detection efficiency (domain in GeV)
         F->SetParameter(0, 40.);                                                                                            // turn-on poing
         F->SetParameter(1, 5.);                                                                                             // rising speed of turn-on
         TF1 *B = new TF1("B", "0.35 + (0.35 * TMath::Erf((1.8 - TMath::Abs(x)) / 0.3))", -3., 3.);                          // b-tagging efficiency
@@ -150,8 +149,8 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
         hist_pTj4->SetLineColor(kBlack);
 
 
-        TH1D *hist_F = new TH1D("", "F", 250, 0., 300.);
-        TH1D *hist_B = new TH1D("", "B", 250, 0., 1000.);
+        TH1D *hist_F = new TH1D("", "F = 0.5 + 0.5 * erf((x - 40) / 5); p_{T} (GeV); F", 250, 0., 300.);
+        TH1D *hist_B = new TH1D("", "B = 0.35 + (0.35 * TMath::Erf((1.8 - TMath::Abs(x)) / 0.3)); #eta; B", 250, -3., 3.);
 
     
     // create output file and output TTree
@@ -174,7 +173,7 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
     {   
         x1 = gRandom->Exp(tau); // exp (-t / tau)
         x2 = gRandom->Exp(tau); // exp (-t / tau)
-        while (x1 > 1. || x2 > 1.)
+        while (x1 > 1. || x2 > 1.) // making sure that x < 1
         {
             x1 = gRandom->Exp(tau);
             x2 = gRandom->Exp(tau);
@@ -205,19 +204,16 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
         // Indeed the CoM of the composite components are nearly 0 except rounding errors
         // cout << p1_prime_CoM.Px() + p2_prime_CoM.Px() << " " << p1_prime_CoM.Py() + p2_prime_CoM.Py() << " " << p1_prime_CoM.Pz() + p2_prime_CoM.Pz() << " " << p1_prime_CoM.E() + p2_prime_CoM.E() << endl;
         
-
         // boosting momenta to the LAB frame
         p1_prime.Boost(0., 0., x1 - x2);
         p2_prime.Boost(0., 0., x1 - x2);
 
-        // calculating energies in the LAB frame (just for visualization, they are implicitly calculated in the boost_toLAB)
+        // energies in the LAB frame
         E1_prime_LAB = p1_prime.E();
         E2_prime_LAB = p2_prime.E();
 
-
         theta1_LAB = p1_prime.Theta();
         theta2_LAB = p2_prime.Theta();
-
 
         // histograms up to before jets generation
         hist_x1->Fill(x1);
@@ -289,11 +285,6 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
             theta_j3_LAB = p_j3.Theta();
             theta_j4_LAB = p_j4.Theta();
 
-            hist_thetaj1_LAB->Fill(theta_j1_LAB);
-            hist_thetaj2_LAB->Fill(theta_j2_LAB);
-            hist_thetaj3_LAB->Fill(theta_j3_LAB);
-            hist_thetaj4_LAB->Fill(theta_j4_LAB);
-
 
             // pT and eta
             Double_t pT_j1, pT_j2, pT_j3, pT_j4;
@@ -316,11 +307,13 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
                 // save computing time by breaking the loop if the eta already fail the requirement
             }
 
+            // phi of jets in LAB frame
             phi_j1_LAB = 2 * TMath::ATan(p_j1.Py() / p_j1.Px());
             phi_j2_LAB = 2 * TMath::ATan(p_j2.Py() / p_j2.Px());
             phi_j3_LAB = 2 * TMath::ATan(p_j3.Py() / p_j3.Px());
             phi_j4_LAB = 2 * TMath::ATan(p_j4.Py() / p_j4.Px());
 
+            // E of jets in LAB frame
             E_j1_LAB = p_j1.E();
             E_j2_LAB = p_j2.E();
             E_j3_LAB = p_j3.E();
@@ -336,7 +329,7 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
 
 
 
-            // detection acceptance
+            // detectors acceptance
             F_j1 = gRandom->Uniform(0, 1);
             F_j2 = gRandom->Uniform(0, 1);
             F_j3 = gRandom->Uniform(0, 1);
@@ -370,21 +363,24 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
                     jetEvent4.eta = p_j4.Eta();
                     jetEvent4.phi = p_j4.Phi();
                     
-                    
+                    // filling the tree
                     Events_4jTree->Fill();
 
+                    // filling histograms
+                    hist_thetaj1_LAB->Fill(theta_j1_LAB);
+                    hist_thetaj2_LAB->Fill(theta_j2_LAB);
+                    hist_thetaj3_LAB->Fill(theta_j3_LAB);
+                    hist_thetaj4_LAB->Fill(theta_j4_LAB);
 
-                    hist_pTj1->Fill(p_j1.Pt() * 1E3); // passing to GeV / c
-                    hist_pTj2->Fill(p_j2.Pt() * 1E3); // passing to GeV / c
-                    hist_pTj3->Fill(p_j3.Pt() * 1E3); // passing to GeV / c
-                    hist_pTj4->Fill(p_j4.Pt() * 1E3); // passing to GeV / c
-
+                    hist_pTj1->Fill(p_j1.Pt() * 1E3); // 1E3 to pass to GeV / c
+                    hist_pTj2->Fill(p_j2.Pt() * 1E3);
+                    hist_pTj3->Fill(p_j3.Pt() * 1E3);
+                    hist_pTj4->Fill(p_j4.Pt() * 1E3);
 
                     hist_etaj1->Fill(p_j1.Eta());
                     hist_etaj2->Fill(p_j2.Eta());
                     hist_etaj3->Fill(p_j3.Eta());
                     hist_etaj4->Fill(p_j4.Eta());
-
 
                     hist_phij1_LAB->Fill(p_j1.Phi());
                     hist_phij2_LAB->Fill(p_j2.Phi());
@@ -412,7 +408,7 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
         {
             //cout << "three jets" << endl;
         }
-        else if (split_prob1 < 0 && split_prob2 < 0) // no splitting (two partons)
+        else // no splitting (two partons)
         {
             //cout << "two jets" << endl;
         }
@@ -423,7 +419,6 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
             std::cout << "Accepted " << accepted_ev << "/" << i << " entries "  <<  Form("(%.0f%%)", accepted_ev * 100.0 / i) << std::endl;
         }  
     }
-
     outFile->cd();
     Events_4jTree->Write("", TObject::kOverwrite);
     outFile->Close();
@@ -442,11 +437,9 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
     c2->SetLogy();
     hist_x2->Draw();
 
-
     TCanvas *c6 = new TCanvas("c6", "Vel. CoM");
     c6->SetLogy();
     hist_v->Draw();
-
 
     TCanvas *c3 = new TCanvas("c3", "E1");
     c3->SetLogy();
@@ -458,17 +451,14 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
     hist_E2_prime_CoM->Draw();
     hist_E2_prime_LAB->Draw("same");
 
-
     TCanvas *c7 = new TCanvas("c7", "theta_LAB");
     hist_thetaLAB1->Draw();
     hist_thetaLAB2->Draw("same");
-
 
     TCanvas *c8 = new TCanvas("c8", "sumE 2partons");
     c8->SetLogy();
     hist_sumE_CoM->Draw();
     hist_sumE_LAB->Draw("same");
-
 
     TCanvas *c9 = new TCanvas("c9", "sumE 4jets");
     c9->SetLogy();
@@ -501,8 +491,12 @@ void parametric_4j_QCD_background_autoBoost(Int_t Nevents = 10000000) {
     hist_pTj4->Draw("same");
 
     TCanvas *c14 = new TCanvas("c14", "F");
-    F->Draw();
+    gStyle->SetOptStat(0);
+    hist_F->Draw();
+    F->Draw("same");
 
     TCanvas *c15 = new TCanvas("c15", "B");
-    B->Draw();
+    gStyle->SetOptStat(0);
+    hist_B->Draw();
+    B->Draw("same");
 }
